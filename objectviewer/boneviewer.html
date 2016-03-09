@@ -1,0 +1,365 @@
+<!DOCTYPE html SYSTEM "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+    <head>
+        <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+        <title>x3d Viewer</title>
+        <script type="text/javascript" src="../x3dom.js"> </script>
+
+        <script type="text/javascript" src="https://ajax.googleapis.com/ajax/libs/jquery/2.2.0/jquery.min.js"></script>
+        <link rel="stylesheet" type="text/css" href="pano.css" />
+        <script type="text/javascript" src="bone.js"> </script>
+
+
+
+        <link rel="stylesheet" type="text/css" href="../x3dom.css" />
+
+
+    </head>
+    <body onload="initializeClip();">
+        <script type="text/javascript">
+            
+        var cellSize = 1.0;
+        
+        var lastMouseX = -1;
+        var lastMouseY = -1;
+        
+        var draggedTransformNode = null;
+        
+        //vectors in 3D world space, associated to mouse x/y movement on the screen
+        var draggingUpVec    = null;
+        var draggingRightVec = null;
+        
+        var unsnappedDragPos = null;
+
+        
+        //------------------------------------------------------------------------------------------------------------------
+        
+        var mouseMoved = function(event)
+        {
+            //offsetX / offsetY polyfill for FF
+            var target = event.target || event.srcElement;
+            var rect = target.getBoundingClientRect();
+            event.offsetX = event.clientX - rect.left;
+            event.offsetY = event.clientY - rect.top;
+        
+            if (lastMouseX === -1)
+            {
+                lastMouseX = event.offsetX;
+            }
+            if (lastMouseY === -1)
+            {
+                lastMouseY = event.offsetY;
+            }
+
+            if (draggedTransformNode)
+            {
+               dragObject(event.offsetX - this.lastMouseX, event.offsetY - this.lastMouseY);
+            }
+
+            lastMouseX = event.offsetX;
+            lastMouseY = event.offsetY;
+          
+        };
+        
+        //------------------------------------------------------------------------------------------------------------------
+        
+        var startDragging = function(transformNode)
+        {        
+            console.log('bnb');
+            //disable navigation during dragging
+            document.getElementById("navInfo").setAttribute("type", '"NONE"');
+            document.getElementById("navInfo").setAttribute("worlk", '"NONE"');
+            document
+            
+            console.log(transformNode);
+            
+                       
+            draggedTransformNode = transformNode;            
+            unsnappedDragPos     = new x3dom.fields.SFVec3f.parse(transformNode.getAttribute("translation"));
+            
+            
+            //compute the dragging vectors in world coordinates
+            //(since navigation is disabled, those will not change until dragging has been finished)
+
+            //get the viewer's 3D local frame
+            var x3dElem  = document.getElementById("x3dElement");
+            var vMatInv  = x3dElem.runtime.viewMatrix().inverse();            
+            var viewDir  = vMatInv.multMatrixVec(new x3dom.fields.SFVec3f(0.0, 0.0, -1.0));
+            
+            //use the viewer's up-vector and right-vector
+            draggingUpVec    = vMatInv.multMatrixVec(new x3dom.fields.SFVec3f(0.0, 1.0,  0.0));;
+            draggingRightVec = viewDir.cross(this.draggingUpVec);   
+
+            
+            //project a world unit to the screen to get its size in pixels            
+            var x3dElem  = document.getElementById("x3dElement");
+            var p1 = x3dElem.runtime.calcCanvasPos(unsnappedDragPos.x, unsnappedDragPos.y, unsnappedDragPos.z);
+            var p2 = x3dElem.runtime.calcCanvasPos(unsnappedDragPos.x + draggingRightVec.x,
+                                                   unsnappedDragPos.y + draggingRightVec.y,
+                                                   unsnappedDragPos.z + draggingRightVec.z)
+            var magnificationFactor = 1.0 / Math.abs(p1[0] - p2[0]);
+            
+            //scale up vector and right vector accordingly            
+            draggingUpVec    = draggingUpVec.multiply(magnificationFactor);
+            draggingRightVec = draggingRightVec.multiply(magnificationFactor);            
+        };
+
+        //------------------------------------------------------------------------------------------------------------------
+
+        var dragObject = function(dx, dy)
+        {
+            //scale up vector and right vector accordingly            
+            var offsetUp    = draggingUpVec.multiply(-dy);
+            var offsetRight = draggingRightVec.multiply(dx);
+
+            unsnappedDragPos = unsnappedDragPos.add(offsetUp).add(offsetRight);
+
+            var snappedDragPos;
+
+            //if enabled, take grid snapping into account
+           
+           
+                draggedTransformNode.setAttribute("translation", unsnappedDragPos.toString());
+           
+        }
+
+        //------------------------------------------------------------------------------------------------------------------
+
+        var stopDragging = function()
+        {
+            draggedTransformNode = null;                
+            draggingUpVec        = null;
+            draggingRightVec     = null;
+            unsnappedDragPos     = null;
+            
+            //re-enable navigation after dragging
+            document.getElementById("navInfo").setAttribute("type", '"EXAMINE" "ANY"');
+        };        
+    
+        </script>
+        <div id="main">
+            <div class="viewerToolbar">
+                <a id="navModeRotate" href="javascript:changeNavMode(NAVMODES.ROTATE);"
+                    class="toolbarRotate_active" title="Rotate"></a>
+                <a id="navModeMove" href="javascript:changeNavMode(NAVMODES.MOVE);"
+                    class="toolbarMove" title="Move"></a>
+                <a id="navModeZoom" href="javascript:changeNavMode(NAVMODES.ZOOM);"
+                    class="toolbarZoom" title="Zoom"></a>
+                <div class="toolbarSeparator"></div>
+                <a id="displayModePoints" href="javascript:changeDisplayMode(DISPLAYMODES.POINTS);"
+                    class="toolbarPoints" title="Points"></a>
+                <!--a id="displayModeLines" href="javascript:changeDisplayMode(DISPLAYMODES.LINES);" class="toolbarLines" title="Lines"></a-->
+                <a id="displayModeFaces" href="javascript:changeDisplayMode(DISPLAYMODES.FACES);"
+                    class="toolbarFaces_active" title="Faces"></a>
+                <div class="toolbarSeparator"></div>
+                <a id="viewpointMode" href="javascript:;" class="toolbarViewpoint"
+                    title="Viewpoints"></a>
+                <a id="fitAll" href="javascript:fitAll();" class="toolbarFitAll" title="Fit All"></a>
+                <div class="toolbarSeparator"></div>
+                <a id="measurement" href="javascript:enableMeasure(!measureEnabled);"
+                    class="toolbarMeasure" title="Measure"></a>
+                <a id="tooltipMode" href="javascript:enableTooltips(!toolTipEnabled);"
+                    class="toolbarTip_active" title="Tooltips"></a>
+                <a id="settings" href="javascript:;" class="toolbarTranscoder" title="Settings"></a>
+            </div>
+            <div id="pano">
+                <div id="testing">
+                  
+                    <x3d id="x3dElement" showlog="true"  onmouseup="stopDragging();"
+                        onmousemove="mouseMoved(event);">
+                        <div id="butCont"><div id="navbuts">
+                                <button id="fullscreen" onclick="fullscreen(this); return false;"
+                                    >Full Screen</button>
+                                <button id="zoomout" type="button" onclick="zoom(-0.15);">
+                                    <img
+                                        src="https://upload.wikimedia.org/wikipedia/commons/c/c1/GeoGebra_icon_cursor_zoom_in.gif"
+                                     />
+                                </button>
+                                <button id="zoomin" type="button" onclick="zoom(0.15)">
+                                    <img
+                                        src="https://upload.wikimedia.org/wikipedia/commons/8/83/GeoGebra_icon_cursor_zoom_out.gif"
+                                     />
+                                </button>
+                                <button id="up" onclick="up(.15)"
+                                    class="direction ui-btn ui-icon-refresh ui-btn-icon-arrow-u"
+                                    type="button" value="&uarr;">&uarr;</button>
+                                <button id="down" onclick="down(.15)"
+                                    class="direction ui-btn ui-icon-refresh ui-btn-icon-arrow-d"
+                                    type="button" value="&darr;">&darr;</button>
+                                <button id="left" onclick="left(.15)"
+                                    class="direction ui-btn ui-icon-refresh ui-btn-icon-arrow-l"
+                                    type="button" value="&larr;">&larr;</button>
+                                <button id="right" onclick="right(.15)"
+                                    class="direction ui-btn ui-icon-refresh ui-btn-icon-arrow-r"
+                                    type="button" value="&rarr;">&rarr;</button>
+                            </div>
+                        </div>
+                    <scene id="scene">
+                        <NavigationInfo id="navInfo" type="Examine" headlight="true"></NavigationInfo>
+                      
+                                <Viewpoint description="start" id="start" DEF="start" position="0 0 0"></Viewpoint>
+                               <billboard> <transform id="floor" translation="0 -5.5 0" rotation="1 0 0 -1.57">
+                                    <shape>
+                                        <appearance>
+                                            <material effusiveColor=".4 .4 .4" diffuseColor=".4 .4 .4"></material>
+                                        </appearance>
+                                        <plane solid="false" size="16 16"/>
+                                    </shape>
+                                </transform>
+                               <!-- <Transform id="coords">
+                                    <Billboard>
+                                        <Inline DEF="CoordinateAxes" url="CoordinateAxes.x3d"></Inline>
+                                    </Billboard>
+                                </Transform>-->
+                                   </billboard>
+                                <Transform id="light" render="true" onmousedown="startDragging(this);" translation="0 50 0">
+                                    <pointlight location="0 0 0" direction="0 -1 0" intensity="1.0" shadowIntensity="0.7" on="true"
+                                        > </pointlight>
+                                    <Shape>
+                                        <Appearance>
+                                            <Material emissiveColor="0.949, 0.796, 0.129" transparency='1'></Material>
+                                        </Appearance>
+                                        <Sphere radius="1"></Sphere>
+                                    </Shape>
+                                </Transform>
+                        <Group>
+                            <Transform>
+                                
+                                <Transform id="clipScope">
+                                    
+                                    <!--FOR ANNOTATIONS SET GLOBAL MATRIX = LOCAL MATRIX -->
+                                    <Transform DEF="MYBOX" id="MYBOX">
+                                        <Transform id="xcamera">
+                                            <Transform id="ycamera" rotation="1, 0, 0, -1.4999999999999998">
+                                        <Transform id="testtrans" onclick="console.log(event.hitPnt);">
+                                            <inline onclick="console.log(event.hitPnt);preventDefault();" id="x3dFile"
+                                                nameSpaceName="bones" mapDEFToID="true"
+                                                url="Herman_B_Wells_on_bench_at_IU.x3d"> </inline>
+                                            <!-- EXAMPLE GROUND PLANE, FOR BETTER ORIENTATION -->
+                                        </Transform></Transform></Transform>
+                                    </Transform>
+                                </Transform>
+                            </Transform>
+                        </Group>
+                        <Transform id="sceneMaster" translation="0 0 0"></Transform>
+                        <Transform id="sceneMaster2"></Transform>
+                        <Transform id="lineTrafo" render="false">
+                            <Shape isPickable="false">
+                                <Appearance>
+                                    <Material emissiveColor="1 0 0"></Material>
+                                    <DepthMode enableDepthTest="false"></DepthMode>
+                                </Appearance>
+                                <IndexedLineSet coordIndex="0 1 0 -1">
+                                    <Coordinate id="line" point="0.0 0.0 0.0, 8.0 8.0 8.0"></Coordinate>
+                                </IndexedLineSet>
+                            </Shape>
+                        </Transform>
+                        
+                        
+                        <!--<ROUTE id="route" fromField='rotation_changed' fromNode='BOXSENSOR' toField='set_rotation' toNode='start'></ROUTE>-->
+                        <!--<ClipPlane plane="0.7 0 -0.7 0.3" cappingColor="0 0 1" cappingStrength="0.1" id='clip'></ClipPlane>-->
+                    </scene>
+                    </x3d>
+                    <div id="sideMenu" style="display:inline-block;">
+                        <div id="clipPlaneDiv"><Button type="button" class="addClip" onclick="addClipPlane();">ADD CLIPPLANE</Button>
+                    </div>
+                    <div>
+                        <input type="checkbox" onclick="showFloor(this);" checked>Show Floor</input>
+                        <button type="button" id="viewMode" onclick="$('#wire').toggle();">View mode</button></div>
+                    <div id="wire" style="display:none;">
+                        
+                        <input name="object" type="checkbox" checked="true" />Show Object<br />
+                        <input name="wireframe" type="checkbox" />Show Wireframe<br />
+                        <input name="points" type="checkbox" />Show Points<br />
+                       
+                    </div>
+                        <div id="measureDiv">
+                        <button type="button"><a id="measurement" href="javascript:enableMeasure(!measureEnabled);"
+                            class="toolbarMeasure" title="Measure">measure</a></button>
+                        </div>
+                        <div id="lightingDiv">
+                            <button onclick="lighting();" type="button">Lighting</button>
+                            <div id="lightingInt" style="display:none;"><p>Drag the glowing ball to move the overhead light</p>
+                            <p>Overhead light: </p><label class="switch" ">
+                                <input class="switch-input" type="checkbox" onclick="overhead(this);" checked/>
+                                <span class="switch-label" data-on="On" data-off="Off"></span> 
+                                <span class="switch-handle"></span> 
+                            </label>
+                            <p>Headlight:</p>
+                            <label class="switch">
+                                <input class="switch-input" type="checkbox" onclick="headlight(this);" checked />
+                                <span class="switch-label" data-on="On" data-off="Off"></span> 
+                                <span class="switch-handle"></span> 
+                            </label></div>
+                        </div>
+                        
+                        <div id="annotationDiv">
+                            <button type="button" id='togAnnotation' onclick="toggleAnnotation(this)">Hide Annotations</button>
+                            <button type="button" id="createAnnotation"
+                            onclick="enableAnnotation(true);">New Annotation</button>
+                        </div>
+                    </div>
+                </div>
+                <!-- zoom in and zoom out buttons as well as overlay -->
+                <!-- item click overlay. Each item in the x3d needs to identify it's item # by having the attribute "onclick='overlay(ITEM#);'" -->
+                <div id="overlay" style="display:none;">
+                    <img onclick='jQuery("#overlay").toggle()' id="closeOverlay"
+                        src="http://icons.iconarchive.com/icons/oxygen-icons.org/oxygen/256/Actions-window-close-icon.png" />
+                    <p id="overlayContent"> Lorem ipsum dolor sit amet, consectetur adipiscing elit.
+                        Praesent a libero mauris. Praesent faucibus blandit arcu non auctor. Nulla
+                        mattis risus lectus, ornare finibus ligula pellentesque in. Duis rutrum leo
+                        vel nisi ultrices, eget cursus lorem egestas. Nam commodo ante vel risus
+                        ultrices suscipit. Cras feugiat, odio non porta scelerisque, odio est
+                        accumsan massa, a lacinia eros dui id eros. Vestibulum sagittis et nisl non
+                        hendrerit. Aliquam nec tempor orci, sit amet tempus velit. Duis sed gravida
+                        mi. Duis dignissim, enim a lacinia sodales, purus elit sodales felis,
+                        accumsan mollis est elit et elit. Pellentesque vestibulum lorem magna, sit
+                        amet dapibus magna aliquet non. In maximus imperdiet libero eget lobortis.
+                        Donec sagittis laoreet mauris vitae tempor. Nunc id est ac tortor pulvinar
+                        tristique in non velit. Donec vehicula vitae diam vel fermentum. </p>
+                </div>
+            </div>
+            <div id="toolTip"></div>
+            <div class="onoffswitch">
+                <input type="checkbox" name="onoffswitch" class="onoffswitch-checkbox" id="myonoffswitch" checked>
+                    <label class="onoffswitch-label" for="myonoffswitch">
+                        <span class="onoffswitch-inner"></span>
+                        <span class="onoffswitch-switch"></span>
+                    </label>
+            </div>
+            <script type="text/javascript">// Got this from https://github.com/x3dom/x3dom/issues/558            
+  x3dom.X3DCanvas.prototype.mousePosition = function(evt)
+{
+    var x = 0, y = 0;
+
+    if ( "getBoundingClientRect" in document.documentElement ) {
+        var pixelRatio=window.devicePixelRatio || 1;
+        var elem = evt.target.offsetParent;    // should be x3dElem
+        var box = elem.getBoundingClientRect();
+
+        var scrollLeft = window.pageXOffset || document.documentElement.scrollLeft;
+        var scrollTop  = window.pageYOffset || document.documentElement.scrollTop;
+
+        var compStyle = document.defaultView.getComputedStyle(elem, null);
+
+        var paddingLeft = parseFloat(compStyle.getPropertyValue('padding-left'));
+        var borderLeftWidth = parseFloat(compStyle.getPropertyValue('border-left-width'));
+
+        var paddingTop = parseFloat(compStyle.getPropertyValue('padding-top'));
+        var borderTopWidth = parseFloat(compStyle.getPropertyValue('border-top-width'));
+
+        x = Math.round((evt.pageX - (box.left + paddingLeft + borderLeftWidth + scrollLeft))*pixelRatio);
+        y = Math.round((evt.pageY - (box.top + paddingTop + borderTopWidth + scrollTop))*pixelRatio);
+    }
+    else {
+        x3dom.debug.logError('NO getBoundingClientRect');
+    }
+
+    return new x3dom.fields.SFVec2f(x, y);
+}</script>
+            <script type="text/javascript" src="measure.js"> </script>
+            <script type="text/javascript" src="lighting.js"> </script>
+            <script type="text/javascript" src="viewer.js"> </script>
+        </div>
+    </body>
+</html>
